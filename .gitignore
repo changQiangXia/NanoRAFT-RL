@@ -1,0 +1,92 @@
+# ============================================
+# NanoRAFT-RL Git Ignore
+# ============================================
+
+# 大型数据文件（不应提交到Git）
+# 原始数据和处理后的数据
+data/raw/
+data/processed/cache/
+data/processed/index/
+data/processed/**/*.txt
+data/processed/**/*.md
+!data/processed/pubmed/.gitkeep
+
+# 合成数据（可通过脚本重新生成）
+data/synthetic/*.jsonl
+data/synthetic/*.json
+
+# 模型权重和检查点（太大）
+models/cache/
+models/**/*.bin
+models/**/*.safetensors
+models/**/*.pt
+models/**/*.pth
+models/**/*.ckpt
+
+# 训练输出（可在本地生成）
+outputs/raft-sft/checkpoint-*/
+outputs/raft-sft/final/adapter_model.safetensors
+outputs/raft-ppo/checkpoint-*/
+outputs/raft-ppo/final/adapter_model.safetensors
+outputs/*.json
+
+# 保留最终配置，但忽略大型权重文件
+# 注意：如果需要分享模型，请使用HuggingFace Hub或其他方式
+
+# 日志文件
+logs/**/*.log
+logs/**/checkpoint-*/
+
+# Python缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# PyCharm/VSCode
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 环境
+.env
+.venv
+env/
+venv/
+ENV/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 测试相关
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 其他
+*.bak
+*.tmp
+*.temp

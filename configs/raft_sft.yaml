@@ -1,0 +1,148 @@
+# RAFT (Retrieval-Augmented Fine-Tuning) 配置文件
+# 针对4GB VRAM极致优化
+
+# ============================================================
+# 1. 数据配置
+# ============================================================
+data:
+  # 训练数据路径
+  train_file: "data/synthetic/train.jsonl"
+  val_file: "data/synthetic/val.jsonl"
+  
+  # 数据预处理
+  max_seq_length: 1024       # 最大序列长度（4GB显存限制）
+  padding_side: "right"      # 填充方向
+
+# ============================================================
+# 2. 模型配置
+# ============================================================
+model:
+  # 基础模型选择（针对4GB显存，推荐0.5B-1.5B参数）
+  # 推荐选项：
+  # - "TinyLlama/TinyLlama-1.1B-Chat-v1.0" (1.1B, 英文好, transformers 4.36兼容)
+  # - "Qwen/Qwen2-0.5B-Instruct" (0.5B, 中文好, 需要transformers>=4.37)
+  # - "microsoft/Phi-3-mini-4k-instruct" (3.8B, 能力强但4GB可能OOM)
+  base_model: "Qwen/Qwen2-7B-Instruct"  # 本地已有，7B需4-bit量化
+  
+  # 模型加载配置
+  trust_remote_code: true
+  
+# ============================================================
+# 3. QLoRA配置（4-bit量化）
+# ============================================================
+qlora:
+  # 是否启用4-bit量化（7B模型必须启用，否则24GB不够）
+  enabled: true
+  
+  # BitsAndBytesConfig参数（启用时有效）
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_use_double_quant: true
+  
+# ============================================================
+# 4. LoRA配置
+# ============================================================
+lora:
+  # LoRA秩（4GB显存建议r=8或16）
+  r: 8
+  
+  # LoRA alpha（通常=2*r）
+  alpha: 32
+  
+  # 目标模块（不同模型结构不同）
+  # Llama/TinyLlama: ["q_proj", "v_proj"]
+  # Qwen: ["q_proj", "v_proj", "k_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]  # Qwen2完整模块
+  
+  # Dropout
+  dropout: 0.05
+  
+  # 偏置
+  bias: "none"
+  
+  # 任务类型
+  task_type: "CAUSAL_LM"
+
+# ============================================================
+# 5. 训练配置
+# ============================================================
+training:
+  # 输出目录
+  output_dir: "outputs/raft-sft"
+  
+  # 训练轮数
+  num_epochs: 3  # 3个epoch，约10-15分钟
+  
+  # Batch size（4GB显存必须很小）
+  per_device_train_batch_size: 1      # 7B量化后仍需小batch
+  per_device_eval_batch_size: 1
+  
+  # 梯度累积（模拟更大的batch）
+  gradient_accumulation_steps: 4      # 有效batch=4
+  
+  # 学习率
+  learning_rate: 2.0e-4
+  
+  # 学习率调度
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  
+  # 优化器
+  # 4-bit量化时使用: "paged_adamw_8bit"
+  # 无量化时使用: "adamw_torch"
+  optim: "paged_adamw_8bit"  # 4-bit量化专用优化器
+  
+  # 权重衰减
+  weight_decay: 0.001
+  
+  # 最大梯度范数（防止梯度爆炸）
+  max_grad_norm: 0.3
+  
+  # 梯度检查点（时间换空间，节省约30%显存）
+  gradient_checkpointing: true
+  
+  # 日志和保存
+  logging_steps: 5
+  save_steps: 50
+  eval_steps: 50
+  save_total_limit: 2
+  
+  # 评估
+  evaluation_strategy: "steps"
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  
+  # 混合精度（4GB显存必须启用）
+  fp16: false
+  bf16: true
+  
+  # 报告工具
+  report_to: "none"                   # 可选: "wandb", "tensorboard"
+
+# ============================================================
+# 6. RAFT特殊配置
+# ============================================================
+raft:
+  # 是否在input中包含干扰项上下文（RAFT核心特性）
+  include_context: true
+  
+  # CoT标记（用于解析输出中的推理链）
+  cot_marker: "$Chain-of-Thought$"
+  
+  # 响应模板（Alpaca格式）
+  response_template: "### Response:\n"
+
+# ============================================================
+# 7. 显存优化配置
+# ============================================================
+memory:
+  # 启用显存监控
+  monitor: true
+  
+  # 清空缓存频率（每N步）
+  empty_cache_freq: 10
+  
+  # 预分配显存（避免碎片化）
+  # 留1GB给系统和其他进程
+  max_memory: {0: "3GiB"}
