@@ -1,0 +1,186 @@
+# 数据合成流水线配置文件
+# RAFT: Retrieval-Augmented Fine-Tuning 数据合成配置
+
+# ============================================================
+# 1. 文档处理配置 (Document Processing)
+# ============================================================
+document:
+  # 原始文档目录（请手动放置文档后修改）
+  # 
+  # 方案1: 使用PubMed RCT数据集（医学领域，推荐）
+  # 先运行: python scripts/prepare_pubmed_data.py --all --input data/raw/pubmed-rct-master --output data/processed/pubmed
+  # 然后设置为: "data/processed/pubmed/pubmed_20k_rct/train"
+  #
+  # 方案2: 使用Selenium/PyTest文档（自动化测试领域）
+  # 直接设置为: "data/raw"
+  raw_dir: "data/processed/pubmed/pubmed_20k_rct/train"
+  
+  # 支持的文件格式
+  allowed_extensions: [".md", ".txt", ".pdf", ".docx"]
+  
+  # 文档切分配置
+  chunking:
+    chunk_size: 512        # 每个chunk的token数（PubMed文章较长，推荐512-1024）
+    chunk_overlap: 50      # chunk间重叠token数（保持上下文连贯）
+    separator: "\n\n"       # 优先切分符
+
+# PubMed RCT 专用配置（仅在使用PubMed数据时需要）
+pubmed:
+  # 是否使用PubMed专用解析器
+  enabled: true
+  
+  # 原始txt文件路径（用于预处理）
+  raw_txt_path: "data/raw/pubmed-rct-master/PubMed_20k_RCT/train.txt"
+  
+  # 输出目录（转换后的Markdown）
+  output_dir: "data/processed/pubmed"
+  
+  # 处理的文章数量（None表示全部，可设置为100快速测试）
+  max_articles: null
+  
+  # chunk类型: ["full", "by_section", "methods_only", "conclusions_only"]
+  chunk_type: "full"
+
+# ============================================================
+# 2. Embedding模型配置
+# ============================================================
+embedding:
+  # 使用的Embedding模型（轻量级，适合4GB显存）
+  # 推荐选项：
+  # - "sentence-transformers/all-MiniLM-L6-v2" (22MB, 默认)
+  # - "sentence-transformers/all-MiniLM-L12-v2" (33MB)
+  # - "BAAI/bge-small-en" (33MB)
+  # model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  # 使用与已有索引匹配的模型（1024维）
+  model_name: "BAAI/bge-large-en-v1.5"
+  device: "cuda"  # RTX 4090: BAAI-large约1.3GB，GPU检索加速
+
+# ============================================================
+# 3. 问题生成配置 (Question Generation)
+# ============================================================
+question_generation:
+  # API提供商 ["openai", "zhipu"]
+  # - openai: OpenAI官方API或兼容API
+  # - zhipu: 智谱AI (https://open.bigmodel.cn/)
+  provider: "zhipu"
+  
+  # 教师模型配置（用于生成高质量问答对）
+  teacher_model:
+    # 模型名称
+    # OpenAI: "gpt-3.5-turbo", "gpt-4", "gpt-4o"
+    # 智谱AI: "glm-4", "glm-4-plus", "glm-4-flash"
+    model_name: "glm-4"
+    
+    # API配置（OpenAI模式）
+    # 请设置环境变量: OPENAI_API_KEY
+    # 如需使用第三方OpenAI兼容API：
+    # base_url: "https://api.example.com/v1"
+    
+    # 生成参数
+    temperature: 0.7       # 创造性程度 (0-1)
+    max_retries: 3         # 失败重试次数
+  
+  # 智谱AI专用配置
+  zhipu:
+    # API Key 获取: https://open.bigmodel.cn/
+    # 请设置环境变量: ZHIPU_API_KEY
+    # 或在下面直接填写（不推荐，有安全风险）
+    api_key: "8803877cd0594745a5027787bf6fb441.utIawij2FBVFv5Rj"
+  
+  # 生成策略
+  strategy:
+    # 每个chunk生成的问答对数量
+    qa_per_chunk: 1
+    
+    # 是否使用干扰项生成更高难度问题
+    use_distractors: true
+    
+    # 最大chunk长度（超过则截断）
+    max_chunk_length: 2000
+    
+    # 最大处理chunks数量（用于测试，null表示全部）
+    # 建议测试时设置为 10-100，正式运行时设为 null
+    max_chunks: 500
+
+# ============================================================
+# 4. 干扰项注入配置 (Distractor Injection)
+# ============================================================
+distractor:
+  # 干扰项数量配置
+  # 公式：distractor_ratio = num_distractors / (num_golden + num_distractors)
+  
+  # 难度等级 ["easy", "medium", "hard"]
+  difficulty: "medium"
+  
+  # 干扰项比例（覆盖难度预设，如设置）
+  # target_ratio: 0.7
+  
+  # 最终上下文包含的文档数（golden + distractor）
+  total_contexts: 10  # 4090可处理更多上下文
+  
+  # 是否打乱文档顺序
+  shuffle: true
+  
+  # 干扰项选择策略 ["random", "similar", "adversarial"]
+  selection_strategy: "similar"
+
+# ============================================================
+# 5. 输出格式配置 (Output Formatting)
+# ============================================================
+output:
+  # CoT格式风格 ["latex", "markdown", "plain"]
+  # latex: $Chain-of-Thought$ 格式（推荐，符合RAFT论文）
+  cot_style: "latex"
+  
+  # 是否包含元数据
+  include_metadata: true
+  
+  # 数据集名称
+  dataset_name: "raft_synthetic_v1"
+  
+  # 输出路径
+  output_dir: "data/synthetic"
+  
+  # 数据集划分比例
+  # 100条样本时：70条train，20条val，10条test
+  split:
+    train_ratio: 0.7
+    val_ratio: 0.2
+    # test_ratio = 1 - train_ratio - val_ratio = 0.1
+    seed: 42
+
+# ============================================================
+# 6. 课程学习配置 (Curriculum Learning)
+# ============================================================
+curriculum:
+  # 是否启用课程学习（逐步增加难度）
+  enabled: true
+  
+  # 难度阶段配置
+  stages:
+    - name: "easy"
+      samples_ratio: 0.3    # 30%样本
+      distractor_ratio: 0.3
+    - name: "medium" 
+      samples_ratio: 0.4    # 40%样本
+      distractor_ratio: 0.6
+    - name: "hard"
+      samples_ratio: 0.3    # 30%样本
+      distractor_ratio: 0.8
+
+# ============================================================
+# 7. 本地模型备选配置 (Fallback)
+# ============================================================
+# 当API不可用时，可使用本地小模型（质量较低但免费）
+local_fallback:
+  enabled: false  # 是否启用本地模型备选
+  model_name: "microsoft/phi-2"  # 或 "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  device: "cuda"  # 或 "cpu"
+
+# ============================================================
+# 8. 日志配置
+# ============================================================
+logging:
+  level: "INFO"  # ["DEBUG", "INFO", "WARNING", "ERROR"]
+  save_logs: true
+  log_dir: "logs/data_synthesis"
