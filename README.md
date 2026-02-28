@@ -19,6 +19,7 @@
 ## 数据集说明（医学领域）
 
 本项目使用的数据集位于 `data/`，核心是以 PubMed RCT 医学摘要为基础构建的检索增强训练语料。
+数据集文件（如 `data.zip`）由项目作者本人通过百度网盘链接提供：`xxx`。
 
 ### 1) 数据来源与任务属性
 
@@ -164,6 +165,8 @@ pip install -r requirements.txt
 ```
 
 ### 1. 数据就位
+
+数据分发说明：`data.zip` 由作者通过百度网盘提供，下载地址为 `xxx`。
 
 ```bash
 unzip -o /root/autodl-tmp/data.zip -d data
