@@ -18,20 +18,40 @@ import sys
 import json
 import torch
 import argparse
+import random
+import numpy as np
 from pathlib import Path
 from typing import List, Dict, Tuple
 from collections import defaultdict
 
 # 设置环境
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+# 允许外部通过环境变量覆盖（例如HF_ENDPOINT=https://huggingface.co）
+if not os.getenv("HF_ENDPOINT"):
+    os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 PROJECT_ROOT = Path(__file__).parent.parent
+DEFAULT_CACHE_DIR = PROJECT_ROOT / "models" / "cache"
+os.environ.setdefault("HF_HOME", str(DEFAULT_CACHE_DIR))
+os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(DEFAULT_CACHE_DIR))
+print(f"[Setup] 模型缓存目录: {os.environ['HF_HOME']}")
+
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from peft import PeftModel
 from tqdm import tqdm
+
+
+def set_global_seed(seed: int):
+    """设置全局随机种子，提升评估可复现性"""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 class RaftEvaluator:
@@ -258,7 +278,11 @@ def main():
                        help="评估样本数（建议30-50）")
     parser.add_argument("--base_model", type=str, default="Qwen/Qwen2-7B-Instruct",
                        help="基座模型名")
+    parser.add_argument("--seed", type=int, default=42,
+                       help="随机种子（默认42）")
     args = parser.parse_args()
+    set_global_seed(args.seed)
+    print(f"[Setup] 随机种子: {args.seed}")
     
     all_results = []
     

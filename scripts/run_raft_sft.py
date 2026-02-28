@@ -19,7 +19,9 @@ from pathlib import Path
 from datetime import datetime
 
 # 设置镜像（避免HuggingFace下载超时）
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+# 允许外部通过环境变量覆盖（例如HF_ENDPOINT=https://huggingface.co）
+if not os.getenv("HF_ENDPOINT"):
+    os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # 修复Accelerate版本兼容性

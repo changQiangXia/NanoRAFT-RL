@@ -112,6 +112,12 @@ def setup_hf_mirror():
     if not os.getenv("HF_ENDPOINT"):
         os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
         print("[Setup] 已设置Hugging Face镜像: https://hf-mirror.com")
+
+    # 设置统一缓存目录，保证首次下载后可复用
+    default_cache_dir = PROJECT_ROOT / "models" / "cache"
+    os.environ.setdefault("HF_HOME", str(default_cache_dir))
+    os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(default_cache_dir))
+    print(f"[Setup] 模型缓存目录: {os.environ['HF_HOME']}")
     
     # 禁用不必要的警告
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -548,4 +554,3 @@ if __name__ == "__main__":
         print("[参数] 强制重新生成模式：将忽略缓存的问答对")
     
     main_with_config(config)
-
