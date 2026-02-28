@@ -85,7 +85,7 @@ question_generation:
     # API Key 获取: https://open.bigmodel.cn/
     # 请设置环境变量: ZHIPU_API_KEY
     # 或在下面直接填写（不推荐，有安全风险）
-    api_key: "8803877cd0594745a5027787bf6fb441.utIawij2FBVFv5Rj"
+    api_key: ""
   
   # 生成策略
   strategy:

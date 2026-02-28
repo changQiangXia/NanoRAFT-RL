@@ -390,6 +390,73 @@ rewards = [torch.tensor(1.0) for _ in response_tensors]  # 全是1.0！
 
 ---
 
+## 📌 2026-02-28 复现执行记录（含错误与修复）
+
+> 以下内容同步自 `reproduction_error_log.md`，用于保留本次真实复现过程中的问题闭环。
+
+### 复现产物状态
+
+- SFT模型：`outputs/raft-sft/final/`（已生成）
+- PPO模型：`outputs/raft-ppo/final/`（已生成）
+- 评估结果：`outputs/evaluation_results.json`（已生成）
+- 数据合成烟雾测试：`data/synthetic_smoke/`（已生成）
+
+### 本次实测评估结果（test=10）
+
+| 模型 | 格式得分 | CoT得分 | 答案得分 | 综合得分 | 相比基线 |
+|------|---------|---------|---------|---------|---------|
+| 基线模型 (Qwen2-7B) | 0.000 | 0.520 | 0.580 | 0.330 | - |
+| SFT模型 | 0.950 | 0.930 | 0.690 | 0.866 | +162.4% |
+| PPO模型 | 0.750 | 0.860 | 0.650 | 0.753 | +128.2% |
+
+### 错误与修复清单
+
+1. 依赖缺失导致核心模块无法导入  
+   修复：执行 `pip install -r requirements.txt`，补齐运行所需库。
+
+2. `run_data_synthesis.py` 报错 `No module named langchain_openai`  
+   修复：在 `requirements.txt` 增加 `langchain-openai==0.0.2`。
+
+3. `sentence-transformers==2.2.2` 与新版本 `huggingface_hub` 不兼容  
+   修复：固定 `huggingface_hub==0.19.4`（恢复 `cached_download` 兼容链路）。
+
+4. Hugging Face 下载不稳定（网络不可达）  
+   修复：使用 `source /etc/network_turbo`，并按情况切换镜像/直连。
+
+5. 配置文件明文 API key 风险  
+   修复：清空 `configs/data_synthesis.yaml` 中 key，改走环境变量 `ZHIPU_API_KEY`。
+
+6. 中断索引保存导致 `default__vector_store.json` 损坏  
+   修复：从 `data.zip` 重新恢复 `data/processed/index/*`。
+
+7. 索引/embedding 校验阶段耗时极长，误判为卡死  
+   修复：优先使用已提供的 `data/synthetic` 完成训练闭环，再补充小规模数据合成验证。
+
+8. SFT加载Qwen2失败：`KeyError: 'qwen2'`  
+   修复：将 `transformers` 从 `4.36.2` 升级至 `4.37.2`。
+
+9. PPO阶段重复下载7B权重 + 日志缓冲看似“无进度”  
+   修复：  
+   - 显式设置缓存目录：`HF_HOME/HUGGINGFACE_HUB_CACHE=.../models/cache`  
+   - 使用 `python -u` 运行，实时刷新日志  
+   - 新增 `configs/ppo_rl_repro.yaml` 以缩短可完成时间。
+
+10. 数据合成 smoke 在 `hf-mirror.com` 发生 SSL/Proxy 超时  
+    修复：保留网络加速但切回 `huggingface.co` 直连，流程恢复。
+
+11. PPO步数未跑满配置值（`total_steps=60`，实际约35）  
+    根因：循环直接遍历 dataloader，样本数与 batch 限制了单轮步数。  
+    结论：本次按单轮完成，成功产出 checkpoint 与 final 模型；如需硬跑满步数，需改为循环迭代 dataloader。
+
+### 本次复现使用的新增/修改配置
+
+- 新增：`configs/ppo_rl_repro.yaml`（可完成版 PPO 复现配置）
+- 新增：`configs/data_synthesis_smoke.yaml`（数据合成烟雾测试）
+- 修改：`requirements.txt`（补全与版本兼容）
+- 修改：`scripts/run_evaluation.py`（兼容 LoRA adapter 目录加载）
+
+---
+
 ## 📚 参考文献
 
 1. **RAFT**: Adapting Language Model to Domain Specific RAG ([arXiv:2403.10131](https://arxiv.org/abs/2403.10131))

@@ -1,0 +1,65 @@
+# 数据合成烟雾测试配置（快速验证流程）
+
+document:
+  raw_dir: "data/processed/pubmed/pubmed_20k_rct/train"
+  allowed_extensions: [".md", ".txt", ".pdf", ".docx"]
+  chunking:
+    chunk_size: 512
+    chunk_overlap: 50
+    separator: "\n\n"
+
+pubmed:
+  enabled: false
+  raw_txt_path: "data/raw/pubmed-rct-master/PubMed_20k_RCT/train.txt"
+  output_dir: "data/processed/pubmed"
+  max_articles: null
+  chunk_type: "full"
+
+embedding:
+  # 与现有索引匹配（避免重建）
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  device: "cpu"
+
+question_generation:
+  provider: "zhipu"
+  teacher_model:
+    model_name: "glm-4"
+    temperature: 0.7
+    max_retries: 3
+  zhipu:
+    api_key: ""
+  strategy:
+    qa_per_chunk: 1
+    use_distractors: true
+    max_chunk_length: 2000
+    max_chunks: 3
+
+distractor:
+  difficulty: "medium"
+  total_contexts: 5
+  shuffle: true
+  selection_strategy: "similar"
+
+output:
+  cot_style: "latex"
+  include_metadata: true
+  dataset_name: "raft_synthetic_smoke"
+  output_dir: "data/synthetic_smoke"
+  split:
+    train_ratio: 0.7
+    val_ratio: 0.2
+    seed: 42
+
+curriculum:
+  enabled: false
+  stages: []
+
+local_fallback:
+  enabled: false
+  model_name: "microsoft/phi-2"
+  device: "cuda"
+
+logging:
+  level: "INFO"
+  save_logs: true
+  log_dir: "logs/data_synthesis_smoke"
