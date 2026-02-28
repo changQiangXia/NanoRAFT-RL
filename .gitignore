@@ -90,3 +90,6 @@ htmlcov/
 *.bak
 *.tmp
 *.temp
+
+# 本地指令文件（严禁提交）
+instruction.md
