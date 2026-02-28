@@ -68,21 +68,40 @@ class RaftEvaluator:
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=True,
         )
-        
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            quantization_config=bnb_config,
-            device_map={"": 0},
-            trust_remote_code=True,
-            torch_dtype=torch.bfloat16,
-        )
+
+        # 兼容LoRA适配器目录（仅含adapter权重）
+        adapter_cfg = Path(model_path) / "adapter_config.json"
+        if adapter_cfg.exists():
+            with open(adapter_cfg, "r", encoding="utf-8") as f:
+                peft_cfg = json.load(f)
+            base_model_name = peft_cfg["base_model_name_or_path"]
+
+            base_model = AutoModelForCausalLM.from_pretrained(
+                base_model_name,
+                quantization_config=bnb_config,
+                device_map={"": 0},
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16,
+            )
+            self.model = PeftModel.from_pretrained(base_model, model_path)
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                quantization_config=bnb_config,
+                device_map={"": 0},
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16,
+            )
+
+        self.model.eval()
+        self.model_device = next(self.model.parameters()).device
         
         print(f"✅ {model_name} 加载完成")
     
     def generate(self, prompt: str, max_new_tokens: int = 256) -> str:
         """生成回答"""
         inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-        inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+        inputs = {k: v.to(self.model_device) for k, v in inputs.items()}
         
         with torch.no_grad():
             outputs = self.model.generate(
