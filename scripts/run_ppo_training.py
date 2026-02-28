@@ -8,16 +8,25 @@ import sys
 import yaml
 import torch
 import argparse
+import random
 from pathlib import Path
 from typing import List, Dict
 import json
 import gc  # 【新增】垃圾回收模块
+import numpy as np
 
 # 设置环境
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+# 允许外部通过环境变量覆盖（例如HF_ENDPOINT=https://huggingface.co）
+if not os.getenv("HF_ENDPOINT"):
+    os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 PROJECT_ROOT = Path(__file__).parent.parent
+DEFAULT_CACHE_DIR = PROJECT_ROOT / "models" / "cache"
+os.environ.setdefault("HF_HOME", str(DEFAULT_CACHE_DIR))
+os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(DEFAULT_CACHE_DIR))
+print(f"[Setup] 模型缓存目录: {os.environ['HF_HOME']}")
+
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
@@ -32,6 +41,18 @@ def load_config(config_path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def set_global_seed(seed: int):
+    """设置全局随机种子，提升可复现性"""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    # 尽量保证可复现（会牺牲少量性能）
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 def collator(data):
     return {key: [d[key] for d in data] for key in data[0]}
 
@@ -42,6 +63,9 @@ def main(config_path: str = "configs/ppo_rl_4090.yaml"):
     print("=" * 60)
     print("RAFT PPO 强化学习训练")
     print("=" * 60)
+    seed = int(config.get("seed", 42))
+    set_global_seed(seed)
+    print(f"[Setup] 随机种子: {seed}")
     
     ppo_config = config["ppo"]
     model_config = config["model"]
@@ -160,9 +184,14 @@ def main(config_path: str = "configs/ppo_rl_4090.yaml"):
         "pad_token_id": tokenizer.pad_token_id,
     }
     
-    for step, batch in enumerate(ppo_trainer.dataloader):
-        if step >= ppo_config["total_steps"]:
-            break
+    total_steps = int(ppo_config["total_steps"])
+    dataloader_iter = iter(ppo_trainer.dataloader)
+    for step in range(total_steps):
+        try:
+            batch = next(dataloader_iter)
+        except StopIteration:
+            dataloader_iter = iter(ppo_trainer.dataloader)
+            batch = next(dataloader_iter)
         
         queries = batch["query"]
         # 【关键】强制限制输入长度，防止长尾数据撑爆显存

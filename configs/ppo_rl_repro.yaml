@@ -6,6 +6,8 @@ model:
   base_model: "Qwen/Qwen2-7B-Instruct"
   trust_remote_code: true
 
+seed: 42
+
 ppo:
   learning_rate: 1.0e-5
   batch_size: 2
