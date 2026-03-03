@@ -166,7 +166,7 @@ pip install -r requirements.txt
 
 ### 1. 数据就位
 
-数据分发说明：`data.zip` 由作者通过百度网盘提供，下载地址为 `xxx`。
+数据分发说明：`data.zip` 由作者通过百度网盘提供，下载地址为 https://pan.baidu.com/s/1mK_s9YtKE3CwbHdDh_F5TA?pwd=xcwt。
 
 ```bash
 unzip -o /root/autodl-tmp/data.zip -d data
